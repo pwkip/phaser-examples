@@ -12,7 +12,7 @@
    [1, 0, 0, 1, 0, 0, 0, 1],
    [1, 0, 0, 2, 4, 4, 0, 1],
    [1, 0, 0, 0, 0, 0, 0, 1],
-   [1, 0, 0, 3, 0, 0, 0, 1],
+   [1, 0, 0, 0, 0, 0, 0, 1],
    [1, 0, 0, 0, 0, 0, 0, 1],
    [1, 0, 0, 0, 0, 1, 1, 1],
    [1, 1, 1, 1, 1, 1, 1, 1]
@@ -22,8 +22,8 @@
  // array which will contain all crates
  var crates = [];
  // size of a tile, in pixels
- var tileSize = 40;
- // the player! Yeah!
+ var tileSize = 40; 
+ // the players! Yeah!
  var players = [];
 
  var activePlayerIndex = 1;
@@ -239,6 +239,15 @@ window.onload = function() {
         return players[i];
       }
     }
+
+    // if no player is found, try withv some more margin ( range - tileSize until tilezize*2 )
+    for (let i = 0; i < players.length; i++) {
+      if (x >= players[i].world.x - tileSize && x <= players[i].world.x + tileSize * 2 &&
+        y >= players[i].world.y - tileSize && y <= players[i].world.y + tileSize * 2) {
+        return players[i];
+      }
+    }
+
     return null;
   }
 
