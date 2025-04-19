@@ -1,3 +1,50 @@
+ // constants with game elements
+ var EMPTY = 0;
+ var WALL = 1;
+ var SPOT = 2;
+ var CRATE = 3;
+ var PLAYER = 4;
+ // according to these values, the crate on the spot = CRATE+SPOT = 5 and the player on the spot = PLAYER+SPOT = 6
+ // sokoban level, using hardcoded values rather than constants to save time, shame on me :) 
+ var level = [
+   [1, 1, 1, 1, 1, 1, 1, 1],
+   [1, 0, 2, 0, 0, 0, 0, 1],
+   [1, 0, 0, 1, 0, 0, 0, 1],
+   [1, 0, 0, 2, 4, 4, 0, 1],
+   [1, 0, 0, 0, 0, 0, 0, 1],
+   [1, 0, 0, 3, 0, 0, 0, 1],
+   [1, 0, 0, 0, 0, 0, 0, 1],
+   [1, 0, 0, 0, 0, 1, 1, 1],
+   [1, 1, 1, 1, 1, 1, 1, 1]
+ ];
+ // array which will keep track of undos
+ var undoArray = [];
+ // array which will contain all crates
+ var crates = [];
+ // size of a tile, in pixels
+ var tileSize = 40;
+ // the player! Yeah!
+ var players = [];
+
+ var activePlayerIndex = 1;
+
+ // is the player moving?
+ var playerMoving = false;
+ // variables used to detect and manage swipes
+ var startX;
+ var startY;
+ var endX;
+ var endY;
+ // texts to display game name and level
+ var levelText;
+ var titleText;
+ // Variables used to create groups. The fist group is called fixedGroup, it will contain
+ // all non-moveable elements (everything but crates and player).
+ // Then we add movingGroup which will contain moveable elements (crates and player)
+ var fixedGroup;
+ var movingGroup;
+
+
 window.onload = function() {
   // game definition, 100% of browser window dimension
   var game = new Phaser.Game("100%", "100%", Phaser.CANVAS, "", {
@@ -5,47 +52,6 @@ window.onload = function() {
     create: onCreate,
     resize: onResize // <- this will be called each time the game is resized
   });
-  // constants with game elements
-  var EMPTY = 0;
-  var WALL = 1;
-  var SPOT = 2;
-  var CRATE = 3;
-  var PLAYER = 4;
-  // according to these values, the crate on the spot = CRATE+SPOT = 5 and the player on the spot = PLAYER+SPOT = 6
-  // sokoban level, using hardcoded values rather than constants to save time, shame on me :) 
-  var level = [
-    [1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 1, 1, 1, 1, 1],
-    [1, 0, 0, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 1],
-    [1, 1, 4, 2, 1, 3, 0, 1],
-    [1, 0, 0, 0, 1, 0, 0, 1],
-    [1, 0, 0, 0, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1]
-  ];
-  // array which will keep track of undos
-  var undoArray = [];
-  // array which will contain all crates
-  var crates = [];
-  // size of a tile, in pixels
-  var tileSize = 40;
-  // the player! Yeah!
-  var player;
-  // is the player moving?
-  var playerMoving = false;
-  // variables used to detect and manage swipes
-  var startX;
-  var startY;
-  var endX;
-  var endY;
-  // texts to display game name and level
-  var levelText;
-  var titleText;
-  // Variables used to create groups. The fist group is called fixedGroup, it will contain
-  // all non-moveable elements (everything but crates and player).
-  // Then we add movingGroup which will contain moveable elements (crates and player)
-  var fixedGroup;
-  var movingGroup;
   // first function to be called, when the game preloads I am loading the sprite sheet with all game tiles
   function onPreload() {
     game.load.spritesheet("tiles", "assets/tiles.png", 40, 40);
@@ -122,7 +128,7 @@ window.onload = function() {
           case PLAYER:
           case PLAYER + SPOT:
             // player creation
-            player = game.add.sprite(40 * j, 40 * i, "tiles");
+            const player = game.add.sprite(40 * j, 40 * i, "tiles");
             // assigning the player the proper frame
             player.frame = level[i][j];
             // creation of two custom attributes to store player x and y position
@@ -135,6 +141,10 @@ window.onload = function() {
             tile.frame = level[i][j] - PLAYER;
             // floor does not move so I am adding it to fixedGroup
             fixedGroup.add(tile);
+
+            players.push(player);
+
+
             break;
           case CRATE:
           case CRATE + SPOT:
@@ -202,9 +212,37 @@ window.onload = function() {
   function beginSwipe() {
     startX = game.input.worldX;
     startY = game.input.worldY;
+
+    console.log(game.input.worldX, game.input.worldY);
+    console.log(players[activePlayerIndex].world.x, players[activePlayerIndex].world.y);
+
+    // swicth to touched player, if any
+    const player = getPlayerAtCoordinates(startX, startY);
+    if (player) {
+      activePlayerIndex = players.indexOf(player);
+      console.log("activePlayerIndex", activePlayerIndex);
+    }
+
+    // check if input pointer is on the player
+    // if x is between player.x and player.x + tileSize
+
+
     game.input.onDown.remove(beginSwipe);
     game.input.onUp.add(endSwipe);
+
   }
+
+  function getPlayerAtCoordinates(x, y) {
+    for (let i = 0; i < players.length; i++) {
+      if (x >= players[i].world.x && x <= players[i].world.x + tileSize &&
+        y >= players[i].world.y && y <= players[i].world.y + tileSize) {
+        return players[i];
+      }
+    }
+    return null;
+  }
+
+
   // function to be called when the player releases the mouse/finger
   function endSwipe() {
     // saving mouse/finger coordinates
@@ -219,11 +257,11 @@ window.onload = function() {
     if (Math.abs(distX) > Math.abs(distY) * 2 && Math.abs(distX) > 10) {
       // moving left, calling move function with horizontal and vertical tiles to move as arguments
       if (distX > 0) {
-        move(-1, 0);
+        moveUntilBlocked(-1, 0);
       }
       // moving right, calling move function with horizontal and vertical tiles to move as arguments
       else {
-        move(1, 0);
+        moveUntilBlocked(1, 0);
       }
     }
     // in order to have a vertical swipe, we need that y distance is at least twice the x distance
@@ -231,11 +269,11 @@ window.onload = function() {
     if (Math.abs(distY) > Math.abs(distX) * 2 && Math.abs(distY) > 10) {
       // moving up, calling move function with horizontal and vertical tiles to move as arguments
       if (distY > 0) {
-        move(0, -1);
+        moveUntilBlocked(0, -1);
       }
       // moving down, calling move function with horizontal and vertical tiles to move as arguments
       else {
-        move(0, 1);
+        moveUntilBlocked(0, 1);
       }
     }
     // stop listening for the player to release finger/mouse, let's start listening for the player to click/touch
@@ -245,26 +283,29 @@ window.onload = function() {
   // function to move the player
   function move(deltaX, deltaY) {
     // if destination tile is walkable...
-    if (isWalkable(player.posX + deltaX, player.posY + deltaY)) {
+    if (isWalkable(players[activePlayerIndex].posX + deltaX, players[activePlayerIndex].posY + deltaY)) {
       // push current situation in the undo array
       undoArray.push(copyArray(level));
       // then move the player and exit the function
       movePlayer(deltaX, deltaY);
       return;
     }
-    // if the destination tile is a crate... 
-    if (isCrate(player.posX + deltaX, player.posY + deltaY)) {
-      // ...if  after the create there's a walkable tils...
-      if (isWalkable(player.posX + 2 * deltaX, player.posY + 2 * deltaY)) {
-        // push current situation in the undo array
-        undoArray.push(copyArray(level));
-        // move the crate
-        moveCrate(deltaX, deltaY);
-        // move the player  
-        movePlayer(deltaX, deltaY);
-      }
-    }
   }
+
+  function moveUntilBlocked(deltaX, deltaY) {
+    let xMult = 1;
+    let yMult = 1;
+
+    while (isWalkable(players[activePlayerIndex].posX + deltaX * xMult, players[activePlayerIndex].posY + deltaY * yMult)) {
+      xMult++;
+      yMult++;
+    }
+
+    move(deltaX * (xMult - 1), deltaY * (yMult - 1));
+
+  }
+
+
   // a tile is walkable when it's an empty tile or a spot tile
   function isWalkable(posX, posY) {
     return level[posY][posX] == EMPTY || level[posY][posX] == SPOT;
@@ -278,10 +319,10 @@ window.onload = function() {
     // now the player is moving
     playerMoving = true;
     // moving with a 1/10s tween
-    var playerTween = game.add.tween(player);
+    var playerTween = game.add.tween(players[activePlayerIndex]);
     playerTween.to({
-      x: player.x + deltaX * tileSize,
-      y: player.y + deltaY * tileSize
+      x: players[activePlayerIndex].x + deltaX * tileSize,
+      y: players[activePlayerIndex].y + deltaY * tileSize
     }, 100, Phaser.Easing.Linear.None, true);
     // setting a tween callback 
     playerTween.onComplete.add(function() {
@@ -289,34 +330,17 @@ window.onload = function() {
       playerMoving = false;
     }, this);
     // updating player old position in level array   
-    level[player.posY][player.posX] -= PLAYER;
+    level[players[activePlayerIndex].posY][players[activePlayerIndex].posX] -= PLAYER;
     // updating player custom posX and posY attributes
-    player.posX += deltaX;
-    player.posY += deltaY;
+    players[activePlayerIndex].posX += deltaX;
+    players[activePlayerIndex].posY += deltaY;
     // updating player new position in level array 
-    level[player.posY][player.posX] += PLAYER;
+    level[players[activePlayerIndex].posY][players[activePlayerIndex].posX] += PLAYER;
     // changing player frame accordingly  
-    player.frame = level[player.posY][player.posX];
+    players[activePlayerIndex].frame = level[players[activePlayerIndex].posY][players[activePlayerIndex].posX];
   }
-  // function to move the crate
-  function moveCrate(deltaX, deltaY) {
-    // moving with a 1/10s tween
-    var crateTween = game.add.tween(crates[player.posY + deltaY][player.posX + deltaX]);
-    crateTween.to({
-      x: crates[player.posY + deltaY][player.posX + deltaX].x + deltaX * tileSize,
-      y: crates[player.posY + deltaY][player.posX + deltaX].y + deltaY * tileSize,
-    }, 100, Phaser.Easing.Linear.None, true);
-    // updating crates array   
-    crates[player.posY + 2 * deltaY][player.posX + 2 * deltaX] = crates[player.posY + deltaY][player.posX + deltaX];
-    crates[player.posY + deltaY][player.posX + deltaX] = null;
-    // updating crate old position in level array  
-    level[player.posY + deltaY][player.posX + deltaX] -= CRATE;
-    // updating crate new position in level array  
-    level[player.posY + 2 * deltaY][player.posX + 2 * deltaX] += CRATE;
-    // changing crate frame accordingly  
-    crates[player.posY + 2 * deltaY][player.posX + 2 * deltaX].frame = level[player.posY + 2 * deltaY][player.posX + 2 * deltaX];
-  }
-  // need a recursive function to copy arrays, no need to reinvent the wheel so I got it here
+
+    // need a recursive function to copy arrays, no need to reinvent the wheel so I got it here
   // http://stackoverflow.com/questions/10941695/copy-an-arbitrary-n-dimensional-array-in-javascript 
   function copyArray(a) {
     var newArray = a.slice(0);
