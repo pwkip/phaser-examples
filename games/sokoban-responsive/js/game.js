@@ -8,15 +8,22 @@ var TWO_PLAYERS = 8;
 
 var level = [
   [1, 1, 1, 1, 1, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1],
+  [1, 0, 4, 0, 0, 0, 0, 1],
   [1, 3, 0, 0, 3, 0, 0, 1],
   [1, 3, 4, 0, 0, 0, 0, 1],
-  [1, 3, 0, 0, 3, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 0, 0, 1],
-  [1, 0, 0, 0, 0, 1, 1, 1],
+  [1, 3, 0, 0, 3, 0, 2, 1],
+  [1, 0, 0, 0, 0, 2, 2, 1],
+  [1, 2, 2, 2, 2, 1, 1, 1],
   [1, 1, 1, 1, 1, 1, 1, 1]
 ];
+
+// level = [
+//   [1, 1, 1, 1],
+//   [1, 0, 0, 1],
+//   [1, 3, 0, 1],
+//   [1, 4, 4, 1],
+//   [1, 1, 1, 1]
+// ];
 
 var tileSize = 40;
 var players = [];
@@ -130,10 +137,14 @@ function beginSwipe() {
   const player = getPlayerAtCoordinates(startX, startY);
   if (player) {
     activePlayerIndex = players.indexOf(player);
-    console.log("activePlayerIndex", activePlayerIndex);
   }
 
   game.input.onDown.remove(beginSwipe);
+
+  if (player && player.isMoving) {
+    return;
+  }
+
   game.input.onUp.add(endSwipe);
 
 }
@@ -218,6 +229,8 @@ function endSwipe() {
 
 function addPlayer(posX, posY) {
 
+  console.log("addPlayer", posX, posY, players);
+
   // player creation
   const player = game.add.sprite(40 * posX, 40 * posY, "tiles");
   // assigning the player the proper frame
@@ -246,13 +259,24 @@ function removeCrate(posX, posY) {
 }
 
 function deletePlayer(player) {
-  console.log("deletePlayer", player);
   // remove the player from the level array
+  console.log('delete player', player.posX, player.posY, player);
   level[player.posY][player.posX] = 0;
   movingGroup.remove(player);
   player.destroy();
   players.splice(players.indexOf(player), 1);
   activePlayerIndex = players.length - 1;
+}
+
+function getMovingPlayersAtLevelCoordinates(posX, posY) {
+  const playersAtCoordinates = [];
+  for (let i = 0; i < players.length; i++) {
+    if (players[i].posX === posX && players[i].posY === posY && players[i].isMoving) {
+      playersAtCoordinates.push(players[i]);
+    }
+  }
+  console.log("getPlayersAtLevelCoordinates", posX, posY, playersAtCoordinates);
+  return playersAtCoordinates;
 }
 
 function moveUntilBlocked(player) {
@@ -266,11 +290,23 @@ function moveUntilBlocked(player) {
   ) {
     player.vectorX = deltaX;
     player.vectorY = deltaY;
-    movePlayer(player);
   } else {
     player.vectorX = 0;
     player.vectorY = 0;
   }
+
+  if (getMovingPlayersAtLevelCoordinates(player.posX, player.posY).length >= 1) {
+    deletePlayer(player);
+    // stop all other players on the same tile
+    const playersAtCoordinates = getMovingPlayersAtLevelCoordinates(player.posX, player.posY);
+    for (let i = 0; i < playersAtCoordinates.length; i++) {
+      playersAtCoordinates[i].vectorX = 0;
+      playersAtCoordinates[i].vectorY = 0;
+    }
+    return;
+  }
+
+  movePlayer(player);
 
 }
 
@@ -278,8 +314,8 @@ function moveUntilBlocked(player) {
 // a tile is walkable when it's an empty tile or a spot tile
 function isWalkable(posX, posY) {
   const player = getPlayerAtLevelCoordinates(posX, posY);
-  return level[posY][posX] == EMPTY || level[posY][posX] == SPOT || level[posY][posX] == CRATE;
   
+  return level[posY][posX] == EMPTY || level[posY][posX] == SPOT || level[posY][posX] == CRATE || player && player.isMoving;
 }
 
 // a tile is a crate when it's a... guess what? crate, or it's a crate on its spot
@@ -296,62 +332,70 @@ function movePlayer(player) {
   if (player.isMoving) {
     return;
   }
-  player.isMoving = true;
-  // moving with a 1/10s tween
-  var playerTween = game.add.tween(player);
-  playerTween.to({
-    x: player.x + deltaX * tileSize,
-    y: player.y + deltaY * tileSize
-  }, 50, Phaser.Easing.Linear.None, true);
 
-  // setting a tween callback 
-  playerTween.onComplete.add(function () {
+  if (player.vectorX != 0 || player.vectorY != 0) {
 
-    player.isMoving = false;
+    player.isMoving = true;
+    // moving with a 1/10s tween
+    var playerTween = game.add.tween(player);
+    playerTween.to({
+      x: player.x + deltaX * tileSize,
+      y: player.y + deltaY * tileSize
+    }, 200, Phaser.Easing.Linear.None, true);
 
-    // now the player is not moving anymore
+    // setting a tween callback 
+    playerTween.onComplete.add(function () {
 
-    if (isCrate(player.posX, player.posY)) {
-      // if destination tile is a crate, delete the crate, and split the player in 2, each of them move in a perpendicular direction
-      removeCrate(player.posX, player.posY);
+      player.isMoving = false;
 
-      // case: moving up: y = -1, x = 0
-      y = player.vectorX * player.vectorX; // 0
-      x = player.vectorY * player.vectorY; // 1
+      // now the player is not moving anymore
 
-      p1X = -1 * (x / x || 0);
-      p1Y = -1 * (y / y || 0);
-      p2X = x / x || 0;
-      p2Y = y / y || 0;
+      if (isCrate(player.posX, player.posY)) {
+        // if destination tile is a crate, delete the crate, and split the player in 2, each of them move in a perpendicular direction
+        removeCrate(player.posX, player.posY);
 
-      // remove the original player
-      deletePlayer(player);
+        // case: moving up: y = -1, x = 0
+        y = player.vectorX * player.vectorX; // 0
+        x = player.vectorY * player.vectorY; // 1
 
-      const p1 = addPlayer(player.posX, player.posY + 0);
-      p1.vectorX = p1X;
-      p1.vectorY = p1Y;
-      const p2 = addPlayer(player.posX, player.posY + 0);
-      p2.vectorX = p2X;
-      p2.vectorY = p2Y;
+        p1X = -1 * (x / x || 0);
+        p1Y = -1 * (y / y || 0);
+        p2X = x / x || 0;
+        p2Y = y / y || 0;
 
-      moveUntilBlocked(p2);
-      moveUntilBlocked(p1);
+        // remove the original player
+        deletePlayer(player);
 
-    } else {
-      moveUntilBlocked(player);
+        const p1 = addPlayer(player.posX, player.posY + 0);
+        p1.vectorX = p1X;
+        p1.vectorY = p1Y;
+        const p2 = addPlayer(player.posX, player.posY + 0);
+        p2.vectorX = p2X;
+        p2.vectorY = p2Y;
 
-    }
+        moveUntilBlocked(p2);
+        moveUntilBlocked(p1);
+
+      } else {
+        moveUntilBlocked(player);
+      }
 
 
-  }, this);
+    }, this);
+  }
 
   // updating player old position in level array   
   level[player.posY][player.posX] = EMPTY;
   // updating player custom posX and posY attributes
   player.posX += deltaX;
   player.posY += deltaY;
-  // updating player new position in level array 
-  level[player.posY][player.posX] += PLAYER;
+  // updating player new position in level array
+  if (level[player.posY][player.posX] === CRATE) {
+    level[player.posY][player.posX] = CRATE + PLAYER;
+  } else {
+    level[player.posY][player.posX] = PLAYER;
+  }
+
   // changing player frame accordingly  
   player.frame = level[player.posY][player.posX];
 }
